@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const  mongoURI = "mongodb://admin:sbs02@178.128.154.246:25050/temple";
+const  mongoURI = "mongodb://templeAdmin:sbs02@178.128.154.246:25050/temple";
 
 
 
