@@ -7,7 +7,7 @@ connectToMongo();
 
 const express = require('express')
 const app = express()
-const port = 5000
+const port = process.env.PORT ||5000;
 // app.use(bodyParser.urlencoded({ extended: false }))  // for form-encode
 app.use(cors());
 // to use request.body we need to use below middileware

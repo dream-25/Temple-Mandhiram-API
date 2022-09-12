@@ -121,7 +121,7 @@ router.post("/login", fetchapp, upload.any(),
   })
 
 
-//   router-3 update password
+//   router-3 update password and other details by admin
 router.put("/update", fetchapp, upload.single("image"), async (req, res) => {
   let success = false;
   const { phone, password, isVerified  } = req.body;
@@ -168,6 +168,72 @@ router.put("/update", fetchapp, upload.single("image"), async (req, res) => {
       const secPass = await bcrypt.hash(password, salt);
       newUser.password = secPass;
     }
+
+
+    // updating the user
+    user = await User.findOneAndUpdate({ phone }, { $set: newUser }, { new: true });
+    success = true;
+    return res.json({ success, message: "User details updated successfully" });
+
+  } catch (error) {
+    console.log(error.message);
+    return res.status(500).json({ success, message: "Internal server error" });
+  }
+})
+
+//    update password and other details by user
+router.put("/updateuser", fetchuser, upload.single("image"), async (req, res) => {
+  let success = false;
+  const { phone , name , birthDate , password  } = req.body;
+  try {
+    const id = req.user;
+    // getting the user
+    let user = await User.findById(id);
+    // creating a new user object 
+    let newUser = {}
+
+    if (phone) {
+      // check whether any user with this phone number exists or not 
+    user = await User.findOne({ phone: phone });
+    if (user) {
+      return res.status(404).json({ success, message: "this number is already used" })
+    }
+    newUser.phone = phone;
+    }
+
+    if (req.file) {
+      if (user.image === "") {
+        uploadFile(req.file.filename)
+      }
+      else {
+        let oldPicture = user.image.substring(56);
+        updateFile(oldPicture, req.file.filename);
+      }
+    }
+
+    
+
+    if (req.file) {
+      newUser.image = `https://rajkumars3connectionwithnodejs.s3.amazonaws.com/${req.file.filename}`;
+      // deleting the file from this folder
+      const path = req.file.filename;
+
+      fs.unlink(path, (err) => {
+        if (err) {
+          console.error(err)
+          return
+        }
+      })
+    };
+    
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      const secPass = await bcrypt.hash(password, salt);
+      newUser.password = secPass;
+    }
+
+    if(name){newUser.name= name}
+    if(birthDate){newUser.birthDate = new Date(birthDate)}
 
 
     // updating the user
@@ -320,7 +386,7 @@ router.put("/family" , fetchuser , upload.any(), async(req , res)=>{
     }
 
     // update the family
-    family = await Family.findOneAndUpdate({$and:[{userId:id} , {name}]} , {$set:newFamily} , {new:true})
+    family = await Family.findOneAndUpdate({_id:familyId} , {$set:newFamily} , {new:true})
     success = true;
     return res.json({success , message:family})
 

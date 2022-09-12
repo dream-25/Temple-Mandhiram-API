@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Temple = require("../models/Temple");
+const TempleEvents = require("../models/TempleEvents");
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -88,7 +89,7 @@ router.get("/fetchall", fetchapp, async (req, res) => {
   let success = false;
   try {
     const app = req.app;
-    let temple = await Temple.find();
+    let temple = await Temple.find().select("-events");
     success = true;
     return res.json({ success, message: temple });
   } catch (error) {
@@ -108,8 +109,8 @@ router.put("/update/:id", fetchapp, upload.single("image"), async (req, res) => 
     // fetching the temple which needs to be updated
     let temple = await Temple.findById(id);
 
-    if(!temple){
-      return res.status(404).json({success , message:"Temple not found"})
+    if (!temple) {
+      return res.status(404).json({ success, message: "Temple not found" })
     }
 
     // creating a new temple object
@@ -166,8 +167,8 @@ router.delete("/delete/:id", fetchapp, async (req, res) => {
 
     // finding the temple to be deleted
     let temple = await Temple.findById(id);
-    if(!temple){
-      return res.status(404).json({success , message:"Temple not found"})
+    if (!temple) {
+      return res.status(404).json({ success, message: "Temple not found" })
     }
 
     let oldPicture = temple.image.substring(56);
@@ -177,6 +178,134 @@ router.delete("/delete/:id", fetchapp, async (req, res) => {
     temple = await Temple.findByIdAndDelete(id);
     success = true;
     return res.json({ success, message: temple })
+
+  } catch (error) {
+    console.log(error.message);
+    return res.status(500).json({ success, message: "Internal server error" });
+  }
+})
+
+// add an event to a temple
+router.put("/addevent", fetchapp, upload.any(), async (req, res) => {
+  let success = false;
+  const { templeId, date, title, description, openingTime, closingTime } = req.body;
+  try {
+    const app = req.app;
+    // check if the temple exists or not
+    let temple = await Temple.findById(templeId);
+    if (!temple) {
+      return res.status(404).json({ success, message: "Temple not found" });
+    }
+
+    // create a new TempleEvents
+    let templeEvents = await TempleEvents.create({
+      templeId: templeId,
+      date: new Date(date).getTime(),
+      title: title,
+      description: description,
+      openingTime: new Date(`1970-01-01T${openingTime}:00`).getTime(),
+      closingTime: new Date(`1970-01-01T${closingTime}:00`).getTime()
+    })
+
+    // add new templeEvents id to the temple events
+    temple = await Temple.findByIdAndUpdate(templeId, { $push: { events: templeEvents._id } }, { new: true })
+
+    let success = true;
+    return res.json({ success, message: "Events added successfully" })
+  } catch (error) {
+    console.log(error.message);
+    return res.status(500).json({ success, message: "Internal server error" });
+  }
+})
+
+// update an event of a temple
+router.put("/updateevent", fetchapp, upload.any(), async (req, res) => {
+  let success = false;
+  const { templeEventsId, date, title, description, openingTime, closingTime } = req.body;
+  try {
+    // check if the templeEvents exists or not
+    let templeEvents = await TempleEvents.findById(templeEventsId);
+    if (!templeEvents) {
+      return res.status(404).json({ success, message: "Temple event not found" });
+    }
+
+    // create a new templeEvents object
+    let newTempleEvents = {};
+    if (date) { newTempleEvents.date = new Date(date).getTime() };
+    if (title) { newTempleEvents.title = title };
+    if (description) { newTempleEvents.description = description };
+    if (openingTime) { newTempleEvents.openingTime = new Date(`1970-01-01T${openingTime}:00`).getTime() };
+    if (closingTime) { newTempleEvents.closingTime = new Date(`1970-01-01T${closingTime}:00`).getTime() };
+
+    // updating the temple event
+    templeEvents = await TempleEvents.findByIdAndUpdate(templeEventsId, { $set: newTempleEvents }, { new: true })
+    success = true;
+    return res.json({ success, message: "Temple events updated successfully" })
+  } catch (error) {
+    console.log(error.message);
+    return res.status(500).json({ success, message: "Internal server error" });
+  }
+})
+
+// delete an event of a temple
+router.delete("/deleteevent", fetchapp, upload.any(), async (req, res) => {
+  let success = false;
+  const { templeEventsId } = req.body;
+  try {
+    // check if the templeEvents exists or not
+    let templeEvents = await TempleEvents.findById(templeEventsId);
+    if (!templeEvents) {
+      return res.status(404).json({ success, message: "Temple event not found" });
+    }
+
+    // getting templeId from templeEvents
+    let templeId = templeEvents.templeId;
+    console.log(templeId)
+    // deleting the templeEventsId from the temple
+    let temple = await Temple.findByIdAndUpdate(templeId, { $pull: { events: templeEventsId } }, { new: true });
+    console.log(temple)
+    // deleting the templeEvents
+    templeEvents = await TempleEvents.findByIdAndDelete(templeEventsId);
+    success = true;
+    return res.json({ success, message: "Temple event delete successfully" })
+
+
+  } catch (error) {
+    console.log(error.message);
+    return res.status(500).json({ success, message: "Internal server error" });
+  }
+})
+
+// get an event of a temple
+router.get("/fetcheventsdate", fetchapp, upload.any(), async (req, res) => {
+  let success = false;
+  const { templeId ,date } = req.query;
+  try {
+    const app = req.app;
+    // finding all the events of this temple
+    let templeEvents = await TempleEvents.find({ templeId });
+    let templeEventsDate = {};
+    for (let index = 0; index < templeEvents.length; index++) {
+      const element = templeEvents[index];
+      // console.log(element)
+      if (Object.keys(templeEventsDate).includes(new Date(element.date).toLocaleDateString('sv'))) {
+        templeEventsDate[new Date(element.date).toLocaleDateString('sv')] += 1
+      }
+      else {
+        templeEventsDate[new Date(element.date).toLocaleDateString('sv')] = 1;
+      }
+    }
+    if(date){
+      templeEvents = templeEvents.filter(templeEvent =>new Date(templeEvent.date).toLocaleDateString('sv')===date )
+      success = true;
+      return res.json({success , message:templeEvents});
+    }
+    else{
+
+      success = true;
+      return res.json({success , message:templeEventsDate})
+    }
+
 
   } catch (error) {
     console.log(error.message);

@@ -86,14 +86,18 @@ router.post("/add", fetchapp, upload.single("image"), async (req, res) => {
 
 
 // fetch all the blogs
-router.get("/fetchall", fetchapp, async (req, res) => {
+router.get("/fetchall", fetchuser, async (req, res) => {
     let success = false;
     try {
-        const app = req.app;
+        const id = req.user;
         // fetching all blogs
         let blogs = await Blog.find().select("-content");
         for (let index = 0; index < blogs.length; index++) {
-            blogs[index] = {...blogs[index]._doc , like:blogs[index]._doc.like.length, comment:blogs[index]._doc.comment.length, share:blogs[index]._doc.share.length}
+            let isLiked=0;
+            if(blogs[index].like.includes(id)){
+                isLiked=1;
+            }
+            blogs[index] = {...blogs[index]._doc , like:blogs[index]._doc.like.length, comment:blogs[index]._doc.comment.length, share:blogs[index]._doc.share.length ,isLiked:isLiked}
             
         }
         success = true;
@@ -105,18 +109,24 @@ router.get("/fetchall", fetchapp, async (req, res) => {
 })
 
 // fetch a single blogs
-router.get("/fetch/:id", fetchapp, async (req, res) => {
+router.get("/fetch/:id", fetchuser, async (req, res) => {
     let success = false;
     const { id } = req.params;
     try {
-        const app = req.app;
+        const userId = req.user;
 
         // fetching the blog
         let blog = await Blog.findById(id);
         if (!blog) {
             return res.status(404).json({ success, message: blog })
         }
+        let isLiked=0;
+            if(blog.like.includes(userId)){
+                isLiked=1;
+            }
+        blog = {...blog._doc , isLiked:isLiked}    
         success = true;
+        
         return res.json({ success, message: blog })
     } catch (error) {
         console.log(error.message);
