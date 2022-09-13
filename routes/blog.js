@@ -15,7 +15,6 @@ const { uploadFile, deleteFile, updateFile } = require("../utilities/awsS3")
 //multer setup start ---------------------------------------------------
 
 const multer = require('multer');
-const { findOne } = require("../models/Family");
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -231,7 +230,7 @@ router.put("/comment", fetchuser, upload.any(), async (req, res) => {
         })
 
         // add _id of the new blogComment to the comment array of blog model
-        blog = await Blog.findByIdAndUpdate(blogId, { $push: { comment: blogComment._id } }, { new: true })
+        blog = await Blog.findByIdAndUpdate(blogId, { $push: { comment: blogComment._id.toString() } }, { new: true })
 
         success = true;
         return res.json({ success, message: blogComment })
@@ -241,25 +240,86 @@ router.put("/comment", fetchuser, upload.any(), async (req, res) => {
     }
 })
 
+// delete a comment of a blog
+router.delete("/comment", fetchuser , upload.any() , async(req ,res)=>{
+    let success = false;
+    const {blogCommentsId} = req.body;
+    try {
+        const userId = req.user;
+        // fetching the blogComments
+        let blogComment = await BlogComment.findById(blogCommentsId);
+        if(!blogComment){
+            return res.status(404).json({success , message:"blogComment not found"});
+        }
+        if(blogComment.userId !==userId){
+            return res.status(400).json({success , message:"It is not your comment so you can not delete it"})
+        }
+
+        // getting blogId from the blogComment
+        let blogId = blogComment.blogId;
+
+        // creating an array to add all blogComments id to be deleted including parent and reply
+        let blogCommentsArray = [blogCommentsId];
+        // getting all the blogComments as this blogCommentsId as parentId
+        let replyComments = await BlogComment.find({parentId:blogCommentsId})
+        if(replyComments.length>0){
+            for (let index = 0; index < replyComments.length; index++) {
+                const element = replyComments[index];
+                blogCommentsArray.push(element._id)
+            }
+        }
+
+        // deleting all the blogComments from BlogComment collection and also remove them from BlogIds comment array
+        for (let index = 0; index < blogCommentsArray.length; index++) {
+            const element = blogCommentsArray[index];
+            
+            // removing them from blogIds comment array
+            console.log(element)
+            let blog =await Blog.findByIdAndUpdate(blogId,{$pull:{comment:element}},{new:true})
+            console.log(blog)
+            // deleting each blogComment from BlogComment collection
+            await BlogComment.findByIdAndDelete(element);
+            
+        }
+
+        success = true;
+        return res.json({success , message:"Comment deleted successfully" })
+
+    } catch (error) {
+        console.log(error.message);
+        return res.status(500).json({ success, message: "Internal server error" });
+    }
+})
+
 // get allcommenter of a blog
-router.post("/comment", fetchapp,upload.any(), async (req, res) => {
+router.post("/comment", fetchuser,upload.any(), async (req, res) => {
     let success = false;
     const { blogId } = req.body;
     try {
+        const userId = req.user;
+        // console.log(userId)
         // checking if the blog exists or not
         let blog = await Blog.findById(blogId);
         if (!blog) {
             return res.status(404).json({ success, message: "Blog not found" })
         }
+        // console.log(blog);
         let commenters = [];
+        let isCommented=0;
+
         for (let index = 0; index < blog.comment.length; index++) {
+            isCommented=0;
             const blogCommentId = blog.comment[index];
             let blogComment = await BlogComment.findById(blogCommentId);
             let commenterId = blogComment.userId;
             let commenter = await User.findById(commenterId)
-            commenter = {...commenter._doc, comment:blogComment.comment}
+            if(commenterId===userId){
+                isCommented=1;
+            }
+            commenter = {...commenter._doc, comment:blogComment.comment , isCommented:isCommented}
             commenters.push(commenter);
         }
+        commenters.reverse();
 
         success = true;
         return res.json({ success, message: commenters })

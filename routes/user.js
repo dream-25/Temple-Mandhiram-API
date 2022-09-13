@@ -237,7 +237,7 @@ router.put("/updateuser", fetchuser, upload.single("image"), async (req, res) =>
 
 
     // updating the user
-    user = await User.findOneAndUpdate({ phone }, { $set: newUser }, { new: true });
+    user = await User.findByIdAndUpdate(id, { $set: newUser }, { new: true });
     success = true;
     return res.json({ success, message: "User details updated successfully" });
 

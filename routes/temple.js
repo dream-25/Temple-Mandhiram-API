@@ -208,7 +208,7 @@ router.put("/addevent", fetchapp, upload.any(), async (req, res) => {
     })
 
     // add new templeEvents id to the temple events
-    temple = await Temple.findByIdAndUpdate(templeId, { $push: { events: templeEvents._id } }, { new: true })
+    temple = await Temple.findByIdAndUpdate(templeId, { $push: { events: templeEvents._id.toString() } }, { new: true })
 
     let success = true;
     return res.json({ success, message: "Events added successfully" })
