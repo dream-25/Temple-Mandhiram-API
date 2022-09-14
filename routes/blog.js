@@ -84,7 +84,7 @@ router.post("/add", fetchapp, upload.single("image"), async (req, res) => {
 })
 
 
-// fetch all the blogs
+// fetch all the blogs by user
 router.get("/fetchall", fetchuser, async (req, res) => {
     let success = false;
     try {
@@ -97,6 +97,25 @@ router.get("/fetchall", fetchuser, async (req, res) => {
                 isLiked=1;
             }
             blogs[index] = {...blogs[index]._doc , like:blogs[index]._doc.like.length, comment:blogs[index]._doc.comment.length, share:blogs[index]._doc.share.length ,isLiked:isLiked}
+            
+        }
+        success = true;
+        return res.json({ success, message: blogs })
+    } catch (error) {
+        console.log(error.message);
+        return res.status(500).json({ success, message: "Internal server error" });
+    }
+})
+
+// fetch all the blogs by admin
+router.get("/fetchallblog", fetchapp, async (req, res) => {
+    let success = false;
+    try {
+        const app = req.app;
+        // fetching all blogs
+        let blogs = await Blog.find().select("-content");
+        for (let index = 0; index < blogs.length; index++) {
+            blogs[index] = {...blogs[index]._doc , like:blogs[index]._doc.like.length, comment:blogs[index]._doc.comment.length, share:blogs[index]._doc.share.length}
             
         }
         success = true;

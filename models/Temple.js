@@ -31,6 +31,10 @@ const TempleSchema = new Schema({
  events:{
    type:Array,
    default:[]
+ },
+ hotels:{
+   type:Array,
+   default:[]
  }
   
 });

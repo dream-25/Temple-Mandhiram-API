@@ -17,6 +17,9 @@ app.use("/api/user",require('./routes/user'));
 app.use("/api/blog",require('./routes/blog'));
 app.use("/api/welcome",require('./routes/welcome'));
 app.use("/api/temple",require('./routes/temple'));
+app.use("/api/support",require('./routes/support'));
+app.use("/api/direction",require('./routes/direction'));
+app.use("/api/hotel",require('./routes/hotel'));
 
 
 
