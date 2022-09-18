@@ -2,14 +2,10 @@ const express = require("express");
 const router = express.Router();
 const Temple = require("../models/Temple");
 const TempleEvents = require("../models/TempleEvents");
-const { body, validationResult } = require('express-validator');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const fetchapp = require("../middlewares/fetchapp");
 const fetchuser = require("../middlewares/fetchuser");
 const fs = require('fs');
-const { uploadFile, deleteFile, updateFile } = require("../utilities/awsS3")
 
 //multer setup start ---------------------------------------------------
 
@@ -18,7 +14,7 @@ const multer = require('multer');
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, '')
+    cb(null, 'static/images/temples')
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
@@ -48,10 +44,7 @@ router.post("/add", fetchapp, upload.single("image"), async (req, res) => {
       return res.status(400).json({ success, message: "Sorry a temple with same name already exists" })
     }
 
-    if (req.file) {
-      uploadFile(req.file.filename)
-    }
-    else {
+    if (!req.file) {
       return res.status(400).json({ success, message: "File needs to be uploaded" })
     }
 
@@ -59,20 +52,11 @@ router.post("/add", fetchapp, upload.single("image"), async (req, res) => {
     temple = await Temple.create({
       name: req.body.name,
       location: req.body.location,
+      title: req.body.title,
       description: req.body.description,
-      image: `https://rajkumars3connectionwithnodejs.s3.amazonaws.com/${req.file.filename}`,
+      image: `${process.env.HOST}/static/images/temples/${req.file.filename}`,
       openingTime: new Date(`1970-01-01T${req.body.openingTime}:00`).getTime(),
       closingTime: new Date(`1970-01-01T${req.body.closingTime}:00`).getTime()
-    })
-
-    // deleting the file from this folder
-    const path = req.file.filename;
-
-    fs.unlink(path, (err) => {
-      if (err) {
-        console.error(err)
-        return
-      }
     })
 
     success = true;
@@ -104,6 +88,7 @@ router.get("/fetchall", fetchapp, async (req, res) => {
 router.put("/update/:id", fetchapp, upload.single("image"), async (req, res) => {
   let success = false;
   const { id } = req.params;
+  const {location , title , description , openingTime , closingTime} = req.body;
   try {
     const app = req.app;
     // fetching the temple which needs to be updated
@@ -117,32 +102,32 @@ router.put("/update/:id", fetchapp, upload.single("image"), async (req, res) => 
     let newTemple = {}
 
     if (req.file) {
-      let oldPicture = temple.image.substring(56);
-      updateFile(oldPicture, req.file.filename);
-      newTemple.image = `https://rajkumars3connectionwithnodejs.s3.amazonaws.com/${req.file.filename}`
-      // deleting the file from this folder
-      const path = req.file.filename;
-
+      // deleteing the previous image
+      const path = temple.image.substring(temple.image.indexOf("/", 9) + 1);
       fs.unlink(path, (err) => {
-        if (err) {
-          console.error(err)
-          return
-        }
+          if (err) {
+              console.error(err)
+              return
+          }
       })
+  newTemple.image = `${process.env.HOST}/static/images/temples/${req.file.filename}`;
     }
 
-    if (req.body.location) {
-      newTemple.location = req.body.location;
+    if (location) {
+      newTemple.location = location;
+    }
+    if (title) {
+      newTemple.location = title;
     }
 
-    if (req.body.description) {
-      newTemple.description = req.body.description;
+    if (description) {
+      newTemple.description = description;
     }
-    if (req.body.openingTime) {
-      newTemple.openingTime = new Date(`1970-01-01T${req.body.openingTime}:00`).getTime();
+    if (openingTime) {
+      newTemple.openingTime = new Date(`1970-01-01T${openingTime}:00`).getTime();
     }
-    if (req.body.closingTime) {
-      newTemple.closingTime = new Date(`1970-01-01T${req.body.closingTime}:00`).getTime();
+    if (closingTime) {
+      newTemple.closingTime = new Date(`1970-01-01T${closingTime}:00`).getTime();
     }
     // update the temple
     temple = await Temple.findByIdAndUpdate(id, { $set: newTemple }, { new: true })
@@ -171,8 +156,15 @@ router.delete("/delete/:id", fetchapp, async (req, res) => {
       return res.status(404).json({ success, message: "Temple not found" })
     }
 
-    let oldPicture = temple.image.substring(56);
-    deleteFile(oldPicture);
+    // deleting the image from this folder
+      
+    const path = temple.image.substring(temple.image.indexOf("/", 9) + 1);
+    fs.unlink(path, (err) => {
+        if (err) {
+            console.error(err)
+            return
+        }
+    })
 
     // delete the temple
     temple = await Temple.findByIdAndDelete(id);
@@ -305,6 +297,29 @@ router.get("/fetcheventsdate", fetchapp, upload.any(), async (req, res) => {
       success = true;
       return res.json({success , message:templeEventsDate})
     }
+
+
+  } catch (error) {
+    console.log(error.message);
+    return res.status(500).json({ success, message: "Internal server error" });
+  }
+})
+
+ // fetch all events
+ router.get("/fetchallevents", fetchapp, upload.any(), async (req, res) => {
+  let success = false;
+  try {
+    const app = req.app;
+    // finding all the events of this temple
+    let templeEvents = await TempleEvents.find();
+    let allTempleEvents =[];
+    for (let index = 0; index < templeEvents.length; index++) {
+      const element = templeEvents[index];
+      let temple = await Temple.findById(element.templeId);
+      allTempleEvents.push({...element._doc , templeName:temple.name})
+    }
+    success = true;
+    return res.json({success , message:allTempleEvents}) 
 
 
   } catch (error) {

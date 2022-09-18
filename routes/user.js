@@ -18,7 +18,7 @@ const multer = require('multer');
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, '')
+    cb(null, 'static/images/users')
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
@@ -133,15 +133,7 @@ router.put("/update", fetchapp, upload.single("image"), async (req, res) => {
       return res.status(404).json({ success, message: "user not found" })
     }
 
-    if (req.file) {
-      if (user.image === "") {
-        uploadFile(req.file.filename)
-      }
-      else {
-        let oldPicture = user.image.substring(56);
-        updateFile(oldPicture, req.file.filename);
-      }
-    }
+    
 
 
 
@@ -149,16 +141,17 @@ router.put("/update", fetchapp, upload.single("image"), async (req, res) => {
     const newUser = {};
 
     if (req.file) {
-      newUser.image = `https://rajkumars3connectionwithnodejs.s3.amazonaws.com/${req.file.filename}`;
-      // deleting the file from this folder
-      const path = req.file.filename;
-
-      fs.unlink(path, (err) => {
-        if (err) {
-          console.error(err)
-          return
-        }
-      })
+      // deleting the previous image from this folder if already exists
+      if (user.image !== "") {
+        const path = user.image.substring(user.image.indexOf("/", 9) + 1);
+        fs.unlink(path, (err) => {
+            if (err) {
+                console.error(err)
+                return
+            }
+        })
+    }
+    newUser.image = `${process.env.HOST}/static/images/users/${req.file.filename}`; 
     };
     if (isVerified) {
       newUser.isVerified = isVerified;
@@ -201,29 +194,21 @@ router.put("/updateuser", fetchuser, upload.single("image"), async (req, res) =>
     newUser.phone = phone;
     }
 
-    if (req.file) {
-      if (user.image === "") {
-        uploadFile(req.file.filename)
-      }
-      else {
-        let oldPicture = user.image.substring(56);
-        updateFile(oldPicture, req.file.filename);
-      }
-    }
 
     
 
     if (req.file) {
-      newUser.image = `https://rajkumars3connectionwithnodejs.s3.amazonaws.com/${req.file.filename}`;
-      // deleting the file from this folder
-      const path = req.file.filename;
-
-      fs.unlink(path, (err) => {
-        if (err) {
-          console.error(err)
-          return
-        }
-      })
+      // deleting the previous image from this folder if already exists
+      if (user.image !== "") {
+        const path = user.image.substring(user.image.indexOf("/", 9) + 1);
+        fs.unlink(path, (err) => {
+            if (err) {
+                console.error(err)
+                return
+            }
+        })
+    }
+    newUser.image = `${process.env.HOST}/static/images/users/${req.file.filename}`;      
     };
     
     if (password) {
@@ -284,10 +269,16 @@ router.delete("/delete" , fetchuser , async(req , res)=>{
 
     // finding the user to be deleted
     let user = await User.findById(id);
+    // deleting the image from this folder if exists
     if (user.image !== "") {
-      let oldPicture = user.profilePicture.substring(56);
-      deleteFile(oldPicture);
-    }
+      const path = user.image.substring(user.image.indexOf("/", 9) + 1);
+      fs.unlink(path, (err) => {
+          if (err) {
+              console.error(err)
+              return
+          }
+      })
+  }
     // delete the user
     user = await User.findByIdAndDelete(id);
     success = true;

@@ -2,14 +2,11 @@ const express = require("express");
 const router = express.Router();
 const Temple = require("../models/Temple");
 const Hotel = require("../models/Hotel");
-const { body, validationResult } = require('express-validator');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const fetchapp = require("../middlewares/fetchapp");
 const fetchuser = require("../middlewares/fetchuser");
 const fs = require('fs');
-const { uploadFile, deleteFile, updateFile } = require("../utilities/awsS3")
+
 
 //multer setup start ---------------------------------------------------
 
@@ -18,7 +15,7 @@ const multer = require('multer');
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, '')
+        cb(null, 'static/images/hotels')
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
@@ -33,7 +30,7 @@ const upload = multer({ storage: storage })
 // add a hotel
 router.post("/add", fetchapp, upload.single("image"), async (req, res) => {
     let success = false;
-    const { templeId, name } = req.body;
+    const { templeId, name ,description } = req.body;
     try {
         const app = req.app;
         // checking if the temple exists or not
@@ -41,10 +38,7 @@ router.post("/add", fetchapp, upload.single("image"), async (req, res) => {
         if (!temple) {
             return res.status(404).json({ success, message: "Temple not found" })
         }
-        if (req.file) {
-            uploadFile(req.file.filename)
-        }
-        else {
+        if (!req.file) {
             return res.status(400).json({ success, message: "File needs to be uploaded" })
         }
 
@@ -52,22 +46,13 @@ router.post("/add", fetchapp, upload.single("image"), async (req, res) => {
         let hotel = await Hotel.create({
             templeId: templeId,
             name: name,
+            description:description,
             templeName:temple.name,
-            image: `https://rajkumars3connectionwithnodejs.s3.amazonaws.com/${req.file.filename}`,
+            image: `${process.env.HOST}/static/images/hotels/${req.file.filename}`,
         })
 
         // adding id of the new hotel to the temples hotel list
         temple = await Temple.findByIdAndUpdate(templeId , {$push:{hotels:hotel._id.toString()}},{new:true})
-
-        // deleting the file from this folder
-        const path = req.file.filename;
-
-        fs.unlink(path, (err) => {
-            if (err) {
-                console.error(err)
-                return
-            }
-        })
 
         success = true;
         return res.json({ success, message: "Hotel added successfully" });
@@ -114,6 +99,7 @@ router.get("/fetch", fetchapp, async (req, res) => {
 router.put("/update/:id", fetchapp, upload.single("image"), async (req, res) => {
     let success = false;
     const { id } = req.params;
+    const {name , description} = req.body;
     try {
       const app = req.app;
       // fetching the hotel which needs to be updated
@@ -127,22 +113,22 @@ router.put("/update/:id", fetchapp, upload.single("image"), async (req, res) => 
       let newHotel = {}
   
       if (req.file) {
-        let oldPicture = hotel.image.substring(56);
-        updateFile(oldPicture, req.file.filename);
-        newHotel.image = `https://rajkumars3connectionwithnodejs.s3.amazonaws.com/${req.file.filename}`
-        // deleting the file from this folder
-        const path = req.file.filename;
-  
-        fs.unlink(path, (err) => {
-          if (err) {
-            console.error(err)
-            return
-          }
-        })
+        // deleteing the previous image
+          const path = hotel.image.substring(hotel.image.indexOf("/", 9) + 1);
+          fs.unlink(path, (err) => {
+              if (err) {
+                  console.error(err)
+                  return
+              }
+          })
+      newHotel.image = `${process.env.HOST}/static/images/hotels/${req.file.filename}`;
       }
   
-      if (req.body.name) {
-        newHotel.name = req.body.name;
+      if (name) {
+        newHotel.name = name;
+      }
+      if(description){
+        newHotel.description = description;
       }
   
       
@@ -172,8 +158,16 @@ router.put("/update/:id", fetchapp, upload.single("image"), async (req, res) => 
         return res.status(404).json({ success, message: "Hotel not found" })
       }
   
-      let oldPicture = hotel.image.substring(56);
-      deleteFile(oldPicture);
+      // deleting the image from this folder
+      
+        const path = hotel.image.substring(hotel.image.indexOf("/", 9) + 1);
+        fs.unlink(path, (err) => {
+            if (err) {
+                console.error(err)
+                return
+            }
+        })
+    
   
       // delete the hotel
       hotel = await Hotel.findByIdAndDelete(id);

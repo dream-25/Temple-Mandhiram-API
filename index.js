@@ -12,6 +12,9 @@ const port = process.env.PORT ||5000;
 app.use(cors());
 // to use request.body we need to use below middileware
 app.use(express.json());
+
+// app.use("/static",express.static("images") )
+app.use("/static",express.static("static") )
 // available routes
 app.use("/api/user",require('./routes/user'));
 app.use("/api/blog",require('./routes/blog'));

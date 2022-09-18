@@ -1,13 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const Welcome = require("../models/Welcome")
-const { body, validationResult } = require('express-validator');
-const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const fetchapp = require("../middlewares/fetchapp");
 const fetchuser = require("../middlewares/fetchuser");
 const fs = require('fs');
-const { uploadFile, deleteFile, updateFile } = require("../utilities/awsS3")
 
 //multer setup start ---------------------------------------------------
 
@@ -16,7 +13,7 @@ const multer = require('multer');
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, '')
+    cb(null, 'static/images/welcomes')
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
@@ -46,42 +43,20 @@ router.post("/add", fetchapp, upload.single("image"), async (req, res) => {
 
     if (welcome.length < 2) {
 
-      if (req.file) {
-        uploadFile(req.file.filename)
-      }
-      else {
+      if (!req.file) {
         return res.status(400).json({ success, message: "File needs to be uploaded" })
       }
       // create a new welcome
       welcome = await Welcome.create({
         heading: req.body.heading,
         description: req.body.description,
-        image: `https://rajkumars3connectionwithnodejs.s3.amazonaws.com/${req.file.filename}`
-      })
-
-      // deleting the file from this folder
-      const path = req.file.filename;
-
-      fs.unlink(path, (err) => {
-        if (err) {
-          console.error(err)
-          return
-        }
+        image: `${process.env.HOST}/static/images/welcomes/${req.file.filename}`
       })
 
       success = true;
       return res.json({ success, message: welcome });
     }
     else {
-      // deleting the file from this folder
-      const path = req.file.filename;
-
-      fs.unlink(path, (err) => {
-        if (err) {
-          console.error(err)
-          return
-        }
-      })
       return res.status(400).json({ success, message: "Can not add more than 2 welcome" });
     }
   } catch (error) {
@@ -122,18 +97,15 @@ router.put("/update/:id", fetchapp, upload.single("image"), async (req, res) => 
     let newWelcome = {}
 
     if (req.file) {
-      let oldPicture = welcome.image.substring(56);
-      updateFile(oldPicture, req.file.filename);
-      newWelcome.image = `https://rajkumars3connectionwithnodejs.s3.amazonaws.com/${req.file.filename}`
-      // deleting the file from this folder
-      const path = req.file.filename;
-
+      // deleteing the previous image
+      const path = welcome.image.substring(welcome.image.indexOf("/", 9) + 1);
       fs.unlink(path, (err) => {
-        if (err) {
-          console.error(err)
-          return
-        }
+          if (err) {
+              console.error(err)
+              return
+          }
       })
+  newWelcome.image = `${process.env.HOST}/static/images/welcomes/${req.file.filename}`;
     }
 
     if (req.body.heading) {
@@ -146,8 +118,6 @@ router.put("/update/:id", fetchapp, upload.single("image"), async (req, res) => 
     // update the welcome
     welcome = await Welcome.findByIdAndUpdate(id, { $set: newWelcome }, { new: true })
 
-
-
     success = true;
     return res.json({ success, message: welcome });
   } catch (error) {
@@ -155,16 +125,6 @@ router.put("/update/:id", fetchapp, upload.single("image"), async (req, res) => 
     return res.status(500).send({ success, message: "Internal server error" });
   }
 })
-
-
-
-
-
-
-
-
-
-
 
 
 module.exports = router;
